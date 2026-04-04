@@ -32,3 +32,5 @@ Usage:
     ```
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/S6S6WBTNB)
+
+<img width="200" height="200" alt="qr-code" src="https://github.com/user-attachments/assets/9dbcb7ee-dcc7-4e74-a61d-b16bcd384147" />
