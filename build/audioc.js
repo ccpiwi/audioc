@@ -1178,7 +1178,7 @@ var AudioC = /*#__PURE__*/function () {
     }
   }, {
     key: "getWavData",
-    value: function getWavData() {
+    value: function getWavData(buffer) {
       var audioBuffer = buffer || this.buffer;
       var numberOfChannels = audioBuffer.numberOfChannels;
       var sampleRate = audioBuffer.sampleRate;

@@ -1408,7 +1408,7 @@
       return this.paused;
     }
 
-    getWavData() {
+    getWavData(buffer) {
       const audioBuffer = buffer || this.buffer;
       const numberOfChannels = audioBuffer.numberOfChannels;
       const sampleRate = audioBuffer.sampleRate;
