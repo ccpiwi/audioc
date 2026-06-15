@@ -84,17 +84,20 @@
           offset = 0,
           len = 0;
 
-      // Varies from quality
-      let dec_mode = is_str ? Binary.toUint8(data[0]) : data[0];
-      dec_mode = (dec_mode >> 3) & 0x000F;
-      if (this.block_size != dec_mode) {
-        this.block_size = AMR.modes[dec_mode]; // fix block_size error
-        this.input = new Uint8Array(this.block_size + 1);
+      // Each packet's mode (and therefore its size) is carried in its own
+      // ToC byte; DTX streams interleave full-rate speech frames with much
+      // shorter SID/no-data frames, so the total frame count can't be
+      // derived from a single block_size. Pre-scan the ToC bytes to size
+      // the output buffer correctly.
+      let total_packets = 0;
+      for (let scan_offset = 0; scan_offset < data.length;) {
+        let scan_mode = is_str ? Binary.toUint8(data[scan_offset]) : data[scan_offset];
+        scan_mode = (scan_mode >> 3) & 0x000F;
+        scan_offset += AMR.modes[scan_mode] + 1;
+        total_packets += 1;
       }
-      let total_packets = Math.ceil(data.length / this.block_size);
       let estimated_size = this.frame_size * total_packets;
 
-      let input = this.input;
       let buffer = this.buffer;
       let state = this.state;
 
@@ -105,6 +108,17 @@
       while (offset < data.length) {
         // Benchmarking
         benchmark && console.time('decode_packet_offset_' + offset);
+
+        // Each packet carries its own mode in the ToC byte; resize the
+        // input buffer if this packet's size differs from the previous one.
+        let dec_mode = is_str ? Binary.toUint8(data[offset]) : data[offset];
+        dec_mode = (dec_mode >> 3) & 0x000F;
+        let block_size = AMR.modes[dec_mode];
+        if (this.block_size !== block_size) {
+          this.block_size = block_size;
+          this.input = new Uint8Array(this.block_size + 1);
+        }
+        let input = this.input;
 
         // Read bits
         len = this.read(offset, data);
@@ -121,7 +135,7 @@
         offset += len;
         output_offset += this.frame_size;
       }
-      
+
       benchmark && console.timeEnd('decode');
       return new Float32Array(this.output.subarray(0, output_offset));
     }
@@ -131,7 +145,7 @@
     constructor(params) {
       !params && (params = {});
       this.params = params;
-      this.mode = params.mode || 5; // MR795 by default
+      this.mode = params.mode ?? 5; // MR795 by default
       this.frame_size = 160;
       this.block_size = AMR.modes[this.mode];
       this.dtx = (params.dtx + 0) || 0;
@@ -169,7 +183,10 @@
         offset = 0,
         len, nb, err, tm_str,
         total_packets = Math.ceil(pcmdata.length / this.frame_size),
-        estimated_size = this.block_size + total_packets;
+        // Each packet is at most (block_size + 1) bytes (ToC + payload);
+        // DTX SID/no-data frames are smaller but never larger, so this
+        // bounds the worst case (all frames full-rate).
+        estimated_size = (this.block_size + 1) * total_packets;
 
       if (!this.output || this.output.length < estimated_size) {
         this.output = new Uint8Array(estimated_size + 6);
