@@ -1,10 +1,19 @@
 {
   "scripts": {
-    "build": "npx babel src/audioc.js --out-file build/audioc.js"
+    "build:amrnb": "esbuild src/amrnb-entry.js --bundle --format=iife --global-name=AMRNB --outfile=build/amrnb.js",
+    "build:audioc": "npx babel src/audioc.js --out-file build/audioc.js",
+    "build": "npm run build:amrnb && npm run build:audioc"
   },
   "devDependencies": {
     "@babel/cli": "^7.24.7",
     "@babel/core": "^7.24.7",
-    "@babel/preset-env": "^7.20.2"
+    "@babel/preset-env": "^7.20.2",
+    "esbuild": "^0.23.0"
+  },
+  "dependencies": {
+    "audioc2": "file:../audioc2"
+  },
+  "allowScripts": {
+    "esbuild@0.23.1": true
   }
 }

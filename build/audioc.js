@@ -35,10 +35,10 @@ var AMRDecoder = /*#__PURE__*/function () {
       // 'XXX' - change to parameters
 
       // Input Buffer
-      this.input = AMRNB.allocate(new Int8Array(this.block_size + 1), 0);
+      this.input = new Uint8Array(this.block_size + 1);
 
       // Buffer to store the audio samples
-      this.buffer = AMRNB.allocate(new Int16Array(this.frame_size), 0);
+      this.buffer = new Int16Array(this.frame_size);
     }
   }, {
     key: "close",
@@ -69,19 +69,19 @@ var AMRDecoder = /*#__PURE__*/function () {
       // dec_mode = (dec_mode >> 3) & 0x000F;
       // let packet_size = AMR.modes[dec_mode] + 1;
       var packet_size = this.block_size + 1;
-      var input_addr = this.input;
+      var input = this.input;
       var len = offset + packet_size > data.length ? data.length - offset + 1 : packet_size;
       for (var m = offset - 1, k = 0, bits; ++m < offset + len; k += 1) {
         bits = !is_str ? data[m] : Binary.toUint8(data[m]);
-        AMRNB.setValue(input_addr + k, bits, 'i8');
+        input[k] = bits;
       }
       return len;
     }
   }, {
     key: "write",
-    value: function write(offset, nframes, addr) {
-      for (var m = 0, k = offset - 1; ++k < offset + nframes; m += 2) {
-        this.output[k] = AMRNB.getValue(addr + m, "i16") / 32768;
+    value: function write(offset, nframes, buffer) {
+      for (var m = 0, k = offset - 1; ++k < offset + nframes; m += 1) {
+        this.output[k] = buffer[m] / 32768;
       }
     }
   }, {
@@ -102,13 +102,13 @@ var AMRDecoder = /*#__PURE__*/function () {
       dec_mode = dec_mode >> 3 & 0x000F;
       if (this.block_size != dec_mode) {
         this.block_size = AMR.modes[dec_mode]; // fix block_size error
-        this.input = AMRNB.allocate(new Int8Array(this.block_size + 1), 0);
+        this.input = new Uint8Array(this.block_size + 1);
       }
       var total_packets = Math.ceil(data.length / this.block_size);
       var estimated_size = this.frame_size * total_packets;
-      var input_addr = this.input;
-      var buffer_addr = this.buffer;
-      var state_addr = this.state;
+      var input = this.input;
+      var buffer = this.buffer;
+      var state = this.state;
       if (!this.output || this.output.length < estimated_size) {
         this.output = new Float32Array(estimated_size);
       }
@@ -120,10 +120,10 @@ var AMRDecoder = /*#__PURE__*/function () {
         len = this.read(offset, data);
 
         // Decode the data
-        AMRNB.Decoder_Interface_Decode(state_addr, input_addr, buffer_addr, 0);
+        AMRNB.Decoder_Interface_Decode(state, input, buffer, 0);
 
         // Write the samples to the output buffer
-        this.write(output_offset, this.frame_size, buffer_addr);
+        this.write(output_offset, this.frame_size, buffer);
 
         // Benchmarking
         benchmark && console.timeEnd('decode_packet_offset_' + offset);
@@ -150,24 +150,24 @@ var AMREncoder = /*#__PURE__*/function () {
     value: function init() {
       // Create Encoder
       this.state = AMRNB.Encoder_Interface_init(this.dtx);
-      this.input = AMRNB.allocate(new Int16Array(this.frame_size), 0);
-      this.buffer = AMRNB.allocate(new Int8Array(this.block_size + 1), 0);
+      this.input = new Int16Array(this.frame_size);
+      this.buffer = new Uint8Array(this.block_size + 1);
     }
   }, {
     key: "read",
     value: function read(offset, length, data) {
-      var input_addr = this.input,
+      var input = this.input,
         len = offset + length > data.length ? data.length - offset : length;
-      for (var m = offset - 1, k = 0; ++m < offset + len; k += 2) {
-        AMRNB.setValue(input_addr + k, data[m], 'i16');
+      for (var m = offset - 1, k = 0; ++m < offset + len; k += 1) {
+        input[k] = data[m];
       }
       return len;
     }
   }, {
     key: "write",
-    value: function write(offset, nb, addr) {
+    value: function write(offset, nb, buffer) {
       for (var m = 0, k = offset - 1; ++k < offset + nb; m += 1) {
-        this.output[k] = AMRNB.getValue(addr + m, 'i8');
+        this.output[k] = buffer[m];
       }
     }
   }, {
@@ -190,8 +190,8 @@ var AMREncoder = /*#__PURE__*/function () {
         this.output[i] = AMR.MAGIC_NUMBER[i];
       }
       output_offset += 6;
-      var input_addr = this.input,
-        buffer_addr = this.buffer;
+      var input = this.input,
+        buffer = this.buffer;
       while (offset < pcmdata.length) {
         benchmark && console.time('encode_packet_offset_' + offset);
 
@@ -199,10 +199,10 @@ var AMREncoder = /*#__PURE__*/function () {
         len = this.read(offset, this.frame_size, pcmdata);
 
         // Encode the frame
-        nb = AMRNB.Encoder_Interface_Encode(this.state, this.mode, input_addr, buffer_addr, 0);
+        nb = AMRNB.Encoder_Interface_Encode(this.state, this.mode, input, buffer, 0);
 
         // Write the size and frame
-        this.write(output_offset, nb, buffer_addr);
+        this.write(output_offset, nb, buffer);
         benchmark && console.timeEnd('encode_packet_offset_' + offset);
         output_offset += nb;
         offset += len;

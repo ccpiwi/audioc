@@ -21,20 +21,20 @@ uglifyjs a.i -o a-ie8.s -cm --ie8
 # uglifyjs a.i -o audioc-ie8.min.js -cm --ie8
 cat << EOF > ./a.o
 /*!
- * Audioc Player v0.1.6
+ * Audioc Player v0.2.0
  */
 EOF
 cat << EOF > ./a-ie8.o
 /*!
- * Audioc Player v0.1.6
+ * Audioc Player v0.2.0
  */
 EOF
 
 cat a.s >> a.o
 cat a-ie8.s >> a-ie8.o
 
-mv a.o audioc.min.js
-mv a-ie8.o audioc-ie8.min.js
+mv a.o ../dist/audioc.min.js
+mv a-ie8.o ../dist/audioc-ie8.min.js
 
 echo "Compilation End"
 

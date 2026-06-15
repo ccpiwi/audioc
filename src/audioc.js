@@ -22,10 +22,10 @@
       // 'XXX' - change to parameters
 
       // Input Buffer
-      this.input = AMRNB.allocate(new Int8Array(this.block_size + 1), 0);
+      this.input = new Uint8Array(this.block_size + 1);
 
       // Buffer to store the audio samples
-      this.buffer = AMRNB.allocate(new Int16Array(this.frame_size), 0);
+      this.buffer = new Int16Array(this.frame_size);
     }
 
     close() {
@@ -55,20 +55,20 @@
       // dec_mode = (dec_mode >> 3) & 0x000F;
       // let packet_size = AMR.modes[dec_mode] + 1;
       let packet_size = this.block_size + 1;
-      let input_addr = this.input;
+      let input = this.input;
       let len = offset + packet_size > data.length ? data.length - offset + 1 : packet_size;
 
       for (let m = offset - 1, k = 0, bits; ++m < offset + len; k += 1) {
         bits = !is_str ? data[m] : Binary.toUint8(data[m]);
-        AMRNB.setValue(input_addr + k, bits, 'i8');
+        input[k] = bits;
       }
 
       return len;
     }
 
-    write(offset, nframes, addr) {
-      for (let m = 0, k = offset - 1; ++k < offset + nframes; m += 2) {
-        this.output[k] = AMRNB.getValue(addr + m, "i16") / 32768;
+    write(offset, nframes, buffer) {
+      for (let m = 0, k = offset - 1; ++k < offset + nframes; m += 1) {
+        this.output[k] = buffer[m] / 32768;
       }
     }
 
@@ -89,14 +89,14 @@
       dec_mode = (dec_mode >> 3) & 0x000F;
       if (this.block_size != dec_mode) {
         this.block_size = AMR.modes[dec_mode]; // fix block_size error
-        this.input = AMRNB.allocate(new Int8Array(this.block_size + 1), 0);
+        this.input = new Uint8Array(this.block_size + 1);
       }
       let total_packets = Math.ceil(data.length / this.block_size);
       let estimated_size = this.frame_size * total_packets;
 
-      let input_addr = this.input;
-      let buffer_addr = this.buffer;
-      let state_addr = this.state;
+      let input = this.input;
+      let buffer = this.buffer;
+      let state = this.state;
 
       if (!this.output || this.output.length < estimated_size) {
         this.output = new Float32Array(estimated_size);
@@ -110,10 +110,10 @@
         len = this.read(offset, data);
 
         // Decode the data
-        AMRNB.Decoder_Interface_Decode(state_addr, input_addr, buffer_addr, 0);
+        AMRNB.Decoder_Interface_Decode(state, input, buffer, 0);
 
         // Write the samples to the output buffer
-        this.write(output_offset, this.frame_size, buffer_addr);
+        this.write(output_offset, this.frame_size, buffer);
 
         // Benchmarking
         benchmark && console.timeEnd('decode_packet_offset_' + offset);
@@ -141,24 +141,24 @@
       // Create Encoder
       this.state = AMRNB.Encoder_Interface_init(this.dtx);
 
-      this.input = AMRNB.allocate(new Int16Array(this.frame_size), 0);
-      this.buffer = AMRNB.allocate(new Int8Array(this.block_size + 1), 0);
+      this.input = new Int16Array(this.frame_size);
+      this.buffer = new Uint8Array(this.block_size + 1);
     }
 
     read(offset, length, data) {
-      let input_addr = this.input,
+      let input = this.input,
         len = offset + length > data.length ? data.length - offset : length;
 
-      for (let m = offset - 1, k = 0; ++m < offset + len; k += 2) {
-        AMRNB.setValue(input_addr + k, data[m], 'i16');
+      for (let m = offset - 1, k = 0; ++m < offset + len; k += 1) {
+        input[k] = data[m];
       }
 
       return len;
     }
 
-    write(offset, nb, addr) {
+    write(offset, nb, buffer) {
       for (let m = 0, k = offset - 1; ++k < offset + nb; m += 1) {
-        this.output[k] = AMRNB.getValue(addr + m, 'i8');
+        this.output[k] = buffer[m];
       }
     }
 
@@ -180,8 +180,8 @@
       }
       output_offset += 6;
 
-      let input_addr = this.input,
-        buffer_addr = this.buffer;
+      let input = this.input,
+        buffer = this.buffer;
 
       while (offset < pcmdata.length) {
         benchmark && console.time('encode_packet_offset_' + offset);
@@ -190,10 +190,10 @@
         len = this.read(offset, this.frame_size, pcmdata);
 
         // Encode the frame
-        nb = AMRNB.Encoder_Interface_Encode(this.state, this.mode, input_addr, buffer_addr, 0);
+        nb = AMRNB.Encoder_Interface_Encode(this.state, this.mode, input, buffer, 0);
 
         // Write the size and frame
-        this.write(output_offset, nb, buffer_addr);
+        this.write(output_offset, nb, buffer);
 
         benchmark && console.timeEnd('encode_packet_offset_' + offset);
 
