@@ -22,10 +22,10 @@
       // 'XXX' - change to parameters
 
       // Input Buffer
-      this.input = AMRNB.allocate(new Int8Array(this.block_size + 1), 0);
+      this.input = new Uint8Array(this.block_size + 1);
 
       // Buffer to store the audio samples
-      this.buffer = AMRNB.allocate(new Int16Array(this.frame_size), 0);
+      this.buffer = new Int16Array(this.frame_size);
     }
 
     close() {
@@ -55,20 +55,20 @@
       // dec_mode = (dec_mode >> 3) & 0x000F;
       // let packet_size = AMR.modes[dec_mode] + 1;
       let packet_size = this.block_size + 1;
-      let input_addr = this.input;
+      let input = this.input;
       let len = offset + packet_size > data.length ? data.length - offset + 1 : packet_size;
 
       for (let m = offset - 1, k = 0, bits; ++m < offset + len; k += 1) {
         bits = !is_str ? data[m] : Binary.toUint8(data[m]);
-        AMRNB.setValue(input_addr + k, bits, 'i8');
+        input[k] = bits;
       }
 
       return len;
     }
 
-    write(offset, nframes, addr) {
-      for (let m = 0, k = offset - 1; ++k < offset + nframes; m += 2) {
-        this.output[k] = AMRNB.getValue(addr + m, "i16") / 32768;
+    write(offset, nframes, buffer) {
+      for (let m = 0, k = offset - 1; ++k < offset + nframes; m += 1) {
+        this.output[k] = buffer[m] / 32768;
       }
     }
 
@@ -84,19 +84,22 @@
           offset = 0,
           len = 0;
 
-      // Varies from quality
-      let dec_mode = is_str ? Binary.toUint8(data[0]) : data[0];
-      dec_mode = (dec_mode >> 3) & 0x000F;
-      if (this.block_size != dec_mode) {
-        this.block_size = AMR.modes[dec_mode]; // fix block_size error
-        this.input = AMRNB.allocate(new Int8Array(this.block_size + 1), 0);
+      // Each packet's mode (and therefore its size) is carried in its own
+      // ToC byte; DTX streams interleave full-rate speech frames with much
+      // shorter SID/no-data frames, so the total frame count can't be
+      // derived from a single block_size. Pre-scan the ToC bytes to size
+      // the output buffer correctly.
+      let total_packets = 0;
+      for (let scan_offset = 0; scan_offset < data.length;) {
+        let scan_mode = is_str ? Binary.toUint8(data[scan_offset]) : data[scan_offset];
+        scan_mode = (scan_mode >> 3) & 0x000F;
+        scan_offset += AMR.modes[scan_mode] + 1;
+        total_packets += 1;
       }
-      let total_packets = Math.ceil(data.length / this.block_size);
       let estimated_size = this.frame_size * total_packets;
 
-      let input_addr = this.input;
-      let buffer_addr = this.buffer;
-      let state_addr = this.state;
+      let buffer = this.buffer;
+      let state = this.state;
 
       if (!this.output || this.output.length < estimated_size) {
         this.output = new Float32Array(estimated_size);
@@ -106,14 +109,25 @@
         // Benchmarking
         benchmark && console.time('decode_packet_offset_' + offset);
 
+        // Each packet carries its own mode in the ToC byte; resize the
+        // input buffer if this packet's size differs from the previous one.
+        let dec_mode = is_str ? Binary.toUint8(data[offset]) : data[offset];
+        dec_mode = (dec_mode >> 3) & 0x000F;
+        let block_size = AMR.modes[dec_mode];
+        if (this.block_size !== block_size) {
+          this.block_size = block_size;
+          this.input = new Uint8Array(this.block_size + 1);
+        }
+        let input = this.input;
+
         // Read bits
         len = this.read(offset, data);
 
         // Decode the data
-        AMRNB.Decoder_Interface_Decode(state_addr, input_addr, buffer_addr, 0);
+        AMRNB.Decoder_Interface_Decode(state, input, buffer, 0);
 
         // Write the samples to the output buffer
-        this.write(output_offset, this.frame_size, buffer_addr);
+        this.write(output_offset, this.frame_size, buffer);
 
         // Benchmarking
         benchmark && console.timeEnd('decode_packet_offset_' + offset);
@@ -121,7 +135,7 @@
         offset += len;
         output_offset += this.frame_size;
       }
-      
+
       benchmark && console.timeEnd('decode');
       return new Float32Array(this.output.subarray(0, output_offset));
     }
@@ -131,7 +145,7 @@
     constructor(params) {
       !params && (params = {});
       this.params = params;
-      this.mode = params.mode || 5; // MR795 by default
+      this.mode = params.mode ?? 5; // MR795 by default
       this.frame_size = 160;
       this.block_size = AMR.modes[this.mode];
       this.dtx = (params.dtx + 0) || 0;
@@ -141,24 +155,24 @@
       // Create Encoder
       this.state = AMRNB.Encoder_Interface_init(this.dtx);
 
-      this.input = AMRNB.allocate(new Int16Array(this.frame_size), 0);
-      this.buffer = AMRNB.allocate(new Int8Array(this.block_size + 1), 0);
+      this.input = new Int16Array(this.frame_size);
+      this.buffer = new Uint8Array(this.block_size + 1);
     }
 
     read(offset, length, data) {
-      let input_addr = this.input,
+      let input = this.input,
         len = offset + length > data.length ? data.length - offset : length;
 
-      for (let m = offset - 1, k = 0; ++m < offset + len; k += 2) {
-        AMRNB.setValue(input_addr + k, data[m], 'i16');
+      for (let m = offset - 1, k = 0; ++m < offset + len; k += 1) {
+        input[k] = data[m];
       }
 
       return len;
     }
 
-    write(offset, nb, addr) {
+    write(offset, nb, buffer) {
       for (let m = 0, k = offset - 1; ++k < offset + nb; m += 1) {
-        this.output[k] = AMRNB.getValue(addr + m, 'i8');
+        this.output[k] = buffer[m];
       }
     }
 
@@ -169,7 +183,10 @@
         offset = 0,
         len, nb, err, tm_str,
         total_packets = Math.ceil(pcmdata.length / this.frame_size),
-        estimated_size = this.block_size + total_packets;
+        // Each packet is at most (block_size + 1) bytes (ToC + payload);
+        // DTX SID/no-data frames are smaller but never larger, so this
+        // bounds the worst case (all frames full-rate).
+        estimated_size = (this.block_size + 1) * total_packets;
 
       if (!this.output || this.output.length < estimated_size) {
         this.output = new Uint8Array(estimated_size + 6);
@@ -180,8 +197,8 @@
       }
       output_offset += 6;
 
-      let input_addr = this.input,
-        buffer_addr = this.buffer;
+      let input = this.input,
+        buffer = this.buffer;
 
       while (offset < pcmdata.length) {
         benchmark && console.time('encode_packet_offset_' + offset);
@@ -190,10 +207,10 @@
         len = this.read(offset, this.frame_size, pcmdata);
 
         // Encode the frame
-        nb = AMRNB.Encoder_Interface_Encode(this.state, this.mode, input_addr, buffer_addr, 0);
+        nb = AMRNB.Encoder_Interface_Encode(this.state, this.mode, input, buffer, 0);
 
         // Write the size and frame
-        this.write(output_offset, nb, buffer_addr);
+        this.write(output_offset, nb, buffer);
 
         benchmark && console.timeEnd('encode_packet_offset_' + offset);
 
