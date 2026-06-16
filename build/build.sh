@@ -36,6 +36,9 @@ cat a-ie8.s >> a-ie8.o
 mv a.o ../dist/audioc.min.js
 mv a-ie8.o ../dist/audioc-ie8.min.js
 
+node pack-tables.js ../dist/audioc.min.js
+node pack-tables.js ../dist/audioc-ie8.min.js
+
 echo "Compilation End"
 
 echo "Clear Start"
