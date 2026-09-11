@@ -31,6 +31,9 @@ Usage:
     audio.onEnded(callback);
     ```
 
+## 💖 Support & Donations
+
+
 | Coin | Network | Address |
 | :--- | :--- | :--- |
 | **SOL** | Solana | `GnXfjr5Kq4tpijwfeMbtnqicLFptXXP5rV79axB1M6F5` |
