@@ -31,4 +31,6 @@ Usage:
     audio.onEnded(callback);
     ```
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/S6S6WBTNB)
+| Coin | Network | Address |
+| :--- | :--- | :--- |
+| **SOL** | Solana | `GnXfjr5Kq4tpijwfeMbtnqicLFptXXP5rV79axB1M6F5` |
